@@ -22,6 +22,8 @@ Layout
 
 from __future__ import annotations
 
+import math
+import re
 from pathlib import Path
 from typing import List, Set
 
@@ -29,6 +31,8 @@ import pandas as pd
 from PyQt6.QtCore import Qt, QSettings, QThread
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
+    QComboBox,
+    QDoubleSpinBox,
     QFileDialog,
     QFrame,
     QHBoxLayout,
@@ -468,11 +472,48 @@ class MainWindow(QMainWindow):
             QSpinBox::down-arrow {{ image: url({_dn}); width: 8px; height: 5px; }}
         """)
         h.addWidget(self._row_pct_spin)
+        self._row_pct_spin.valueChanged.connect(self._update_status_counts)
 
         sep2 = QFrame()
         sep2.setFrameShape(QFrame.Shape.VLine)
         sep2.setStyleSheet("color: #334155;")
         h.addWidget(sep2)
+
+        split_lbl = QLabel("Split by:")
+        split_lbl.setStyleSheet("color: #94a3b8;")
+        h.addWidget(split_lbl)
+
+        self._split_col_combo = QComboBox()
+        self._split_col_combo.addItem("(none)")
+        self._split_col_combo.setEnabled(False)
+        self._split_col_combo.setMinimumWidth(140)
+        self._split_col_combo.setToolTip(
+            "Choose a numeric column to split the export into two files:\n"
+            "  • below_or_equal — rows where value ≤ threshold\n"
+            "  • above — rows where value > threshold"
+        )
+        self._split_col_combo.currentIndexChanged.connect(self._on_split_col_changed)
+        h.addWidget(self._split_col_combo)
+
+        threshold_lbl = QLabel("≤")
+        threshold_lbl.setStyleSheet("color: #94a3b8;")
+        h.addWidget(threshold_lbl)
+
+        self._split_threshold = QDoubleSpinBox()
+        self._split_threshold.setRange(-1e9, 1e9)
+        self._split_threshold.setDecimals(3)
+        self._split_threshold.setSingleStep(1.0)
+        self._split_threshold.setValue(0.0)
+        self._split_threshold.setFixedWidth(110)
+        self._split_threshold.setEnabled(False)
+        self._split_threshold.setToolTip("Threshold value — rows ≤ this go to file 1, rows > this go to file 2.")
+        h.addWidget(self._split_threshold)
+        self._split_threshold.valueChanged.connect(self._update_status_counts)
+
+        sep3 = QFrame()
+        sep3.setFrameShape(QFrame.Shape.VLine)
+        sep3.setStyleSheet("color: #334155;")
+        h.addWidget(sep3)
 
         self._export_btn = QPushButton("Export CSV")
         self._export_btn.setObjectName("exportBtn")
@@ -486,10 +527,11 @@ class MainWindow(QMainWindow):
     def _build_statusbar(self) -> None:
         sb = QStatusBar()
         self.setStatusBar(sb)
-        self._status_rows  = QLabel("Rows: —")
-        self._status_wells = QLabel("Wells selected: 0")
-        self._status_cols  = QLabel("Columns selected: 0")
-        for lbl in (self._status_rows, self._status_wells, self._status_cols):
+        self._status_rows   = QLabel("Rows: —")
+        self._status_wells  = QLabel("Wells selected: 0")
+        self._status_cols   = QLabel("Columns selected: 0")
+        self._status_output = QLabel("")
+        for lbl in (self._status_rows, self._status_wells, self._status_cols, self._status_output):
             lbl.setStyleSheet("color: #94a3b8; padding: 0 10px;")
             sb.addWidget(lbl)
 
@@ -570,6 +612,18 @@ class MainWindow(QMainWindow):
             "Percentage of rows to keep.\n10 % → keeps every 10th row (evenly distributed)."
         )
 
+        # Populate split-by combo with numeric columns
+        numeric_cols = [c for c in columns if pd.api.types.is_numeric_dtype(df[c])]
+        self._split_col_combo.blockSignals(True)
+        self._split_col_combo.clear()
+        self._split_col_combo.addItem("(none)")
+        for c in numeric_cols:
+            self._split_col_combo.addItem(c)
+        self._split_col_combo.setCurrentIndex(0)
+        self._split_col_combo.blockSignals(False)
+        self._split_col_combo.setEnabled(True)
+        self._split_threshold.setEnabled(False)
+
     def _on_load_error(self, msg: str) -> None:
         QMessageBox.critical(self, "Load Error", msg)
 
@@ -628,23 +682,110 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "No columns selected", "Please select at least one column.")
             return
 
-        # Build output filename from selected wells
+        # Build base filename part from selected wells
         well_list = sorted(wells, key=lambda w: (w[0], int(w[1:]) if w[1:].isdigit() else 0))
         if len(well_list) <= 4:
             name_part = "-".join(well_list)
         else:
             name_part = f"{well_list[0]}-{well_list[-1]}"
-        out_path = str(Path(self._output_folder) / f"{name_part}-filtered.csv")
 
-        self._export_btn.setEnabled(False)
-        self._export_worker = ExportWorker(
-            self._df, wells, columns, out_path,
-            row_pct=self._row_pct_spin.value(), parent=self
-        )
-        self._export_worker.done.connect(self._on_export_done)
-        self._export_worker.error.connect(self._on_export_error)
-        self._export_worker.finished.connect(lambda: self._update_export_button())
-        self._export_worker.start()
+        split_col = self._split_col_combo.currentText()
+
+        if split_col == "(none)" or not split_col:
+            # ── Single-file export (original behaviour) ────────────────
+            out_path = str(Path(self._output_folder) / f"{name_part}-filtered.csv")
+            self._export_btn.setEnabled(False)
+            self._export_worker = ExportWorker(
+                self._df, wells, columns, out_path,
+                row_pct=self._row_pct_spin.value(), parent=self
+            )
+            self._export_worker.done.connect(self._on_export_done)
+            self._export_worker.error.connect(self._on_export_error)
+            self._export_worker.finished.connect(lambda: self._update_export_button())
+            self._export_worker.start()
+        else:
+            # ── Split export ───────────────────────────────────────────
+            threshold  = self._split_threshold.value()
+            safe_col   = re.sub(r"[^\w.-]", "_", split_col)
+            thr_str    = f"{threshold:g}"          # compact numeric string, e.g. "0" or "2.5"
+            out_low  = str(Path(self._output_folder) /
+                           f"{name_part}-below_or_equal_{safe_col}_{thr_str}.csv")
+            out_high = str(Path(self._output_folder) /
+                           f"{name_part}-above_{safe_col}_{thr_str}.csv")
+
+            # Pre-filter the full DataFrame by the threshold column
+            mask_low  = self._df[split_col] <= threshold
+            mask_high = self._df[split_col] >  threshold
+            df_low  = self._df[mask_low]
+            df_high = self._df[mask_high]
+
+            has_low  = not df_low.empty
+            has_high = not df_high.empty
+
+            if not has_low and not has_high:
+                QMessageBox.warning(self, "Split export",
+                                    "No rows match either group. Nothing exported.")
+                return
+
+            if not has_low:
+                QMessageBox.information(
+                    self, "Split export",
+                    f"No rows with '{split_col}' ≤ {threshold}.\n"
+                    "Only the 'above' file will be written."
+                )
+            if not has_high:
+                QMessageBox.information(
+                    self, "Split export",
+                    f"No rows with '{split_col}' > {threshold}.\n"
+                    "Only the 'below or equal' file will be written."
+                )
+
+            self._export_btn.setEnabled(False)
+            row_pct = self._row_pct_spin.value()
+
+            # Keep references so Qt doesn't garbage-collect the workers
+            self._export_worker        = None
+            self._export_worker_split2 = None
+
+            if has_low and has_high:
+                # Start worker1 (low); on finish, start worker2 (high)
+                self._export_worker = ExportWorker(
+                    df_low, wells, columns, out_low, row_pct=row_pct, parent=self
+                )
+                self._export_worker.error.connect(self._on_export_error)
+
+                def _start_second(path1: str) -> None:
+                    self._on_export_done(path1)
+                    self._export_worker_split2 = ExportWorker(
+                        df_high, wells, columns, out_high, row_pct=row_pct, parent=self
+                    )
+                    self._export_worker_split2.done.connect(self._on_export_done)
+                    self._export_worker_split2.error.connect(self._on_export_error)
+                    self._export_worker_split2.finished.connect(
+                        lambda: self._update_export_button()
+                    )
+                    self._export_worker_split2.start()
+
+                self._export_worker.done.connect(_start_second)
+                self._export_worker.start()
+
+            elif has_low:
+                self._export_worker = ExportWorker(
+                    df_low, wells, columns, out_low, row_pct=row_pct, parent=self
+                )
+                self._export_worker.done.connect(self._on_export_done)
+                self._export_worker.error.connect(self._on_export_error)
+                self._export_worker.finished.connect(lambda: self._update_export_button())
+                self._export_worker.start()
+
+            else:  # has_high only
+                self._export_worker = ExportWorker(
+                    df_high, wells, columns, out_high, row_pct=row_pct, parent=self
+                )
+                self._export_worker.done.connect(self._on_export_done)
+                self._export_worker.error.connect(self._on_export_error)
+                self._export_worker.finished.connect(lambda: self._update_export_button())
+                self._export_worker.start()
 
     def _on_export_done(self, path: str) -> None:
         QMessageBox.information(
@@ -659,6 +800,11 @@ class MainWindow(QMainWindow):
     # ══════════════════════════════════════════════════════════════════════
     # Helpers
     # ══════════════════════════════════════════════════════════════════════
+
+    def _on_split_col_changed(self, index: int) -> None:
+        """Enable/disable the threshold spinbox based on combo selection."""
+        self._split_threshold.setEnabled(index > 0)
+        self._update_status_counts()
 
     def _save_column_selection(self) -> None:
         """Persist the current column list and checked state to QSettings."""
@@ -689,3 +835,32 @@ class MainWindow(QMainWindow):
         n_cols  = len(self._selected_columns())
         self._status_wells.setText(f"Wells selected: {n_wells}")
         self._status_cols.setText(f"Columns selected: {n_cols}")
+
+        if self._df is None or n_wells == 0:
+            self._status_output.setText("")
+            return
+
+        wells     = self._plate.selectedWells()
+        row_pct   = self._row_pct_spin.value()
+        step      = max(1, round(100 / row_pct)) if row_pct < 100 else 1
+        approx    = "~" if step > 1 else ""
+        well_mask = self._df["SeriesName"].isin(wells)
+        well_rows = int(well_mask.sum())
+        split_col = self._split_col_combo.currentText()
+
+        if split_col == "(none)" or not split_col:
+            if step == 1:
+                self._status_output.setText("")
+            else:
+                sampled = math.ceil(well_rows / step)
+                self._status_output.setText(f"Output: {approx}{sampled:,} rows")
+        else:
+            thr       = self._split_threshold.value()
+            col_vals  = self._df.loc[well_mask, split_col]
+            low_rows  = int((col_vals <= thr).sum())
+            high_rows = int((col_vals >  thr).sum())
+            low_s     = math.ceil(low_rows  / step)
+            high_s    = math.ceil(high_rows / step)
+            self._status_output.setText(
+                f"Output:  ≤{thr:g}: {approx}{low_s:,}  |  >{thr:g}: {approx}{high_s:,}"
+            )

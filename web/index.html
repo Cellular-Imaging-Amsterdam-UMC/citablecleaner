@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CITableCleaner</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ── Pyodide init overlay ──────────────────────────────────────────── -->
+<div id="init-overlay">
+  <div class="spinner"></div>
+  <span id="init-msg">Loading Python runtime… (first visit ~5 s)</span>
+  <progress id="init-progress" max="100" value="0"></progress>
+</div>
+
+<!-- ── Size warning / feedback toast ────────────────────────────────── -->
+<div id="toast" class="hidden"></div>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<div id="app">
+
+  <!-- ── Top toolbar ─────────────────────────────────────────────── -->
+  <div id="toolbar">
+    <button id="load-btn" disabled>Load file</button>
+    <!-- hidden real file input -->
+    <input id="file-input" type="file"
+           accept=".csv,.tsv,.txt,.xlsx"
+           style="display:none" />
+    <span id="file-label">No file loaded &nbsp;(or drag &amp; drop a CSV / Excel file here)</span>
+    <div id="progress-wrap">
+      <progress id="load-progress" max="100" value="0"></progress>
+    </div>
+  </div>
+
+  <!-- ── Central ─────────────────────────────────────────────────── -->
+  <div id="central">
+
+    <!-- Left pane: well plate -->
+    <div id="left-pane">
+      <div class="section-title">Well Selection</div>
+      <canvas id="plate-canvas"></canvas>
+      <div id="plate-format-label"></div>
+      <div class="btn-row">
+        <button id="sel-all-wells">Select All</button>
+        <button id="desel-all-wells">Deselect All</button>
+      </div>
+    </div>
+
+    <!-- Right pane: columns -->
+    <div id="right-pane">
+      <div class="section-title">Column Selection</div>
+      <span id="sn-info">SeriesName &nbsp;(always included)</span>
+      <div id="col-list"></div>
+      <div class="btn-row">
+        <button id="sel-all-cols">Select All</button>
+        <button id="desel-all-cols">Deselect All</button>
+      </div>
+    </div>
+
+  </div><!-- #central -->
+
+  <!-- ── Bottom bar ──────────────────────────────────────────────── -->
+  <div id="bottom-bar">
+
+    <label class="bar-label" for="row-pct">Row sampling:</label>
+    <input id="row-pct" type="number" min="1" max="100" value="100"
+           title="Percentage of rows to export. 10 % → every 10th row." />
+    <span class="bar-label">%</span>
+
+    <div class="vline"></div>
+
+    <label class="bar-label" for="split-col">Split by:</label>
+    <select id="split-col" disabled>
+      <option value="(none)">(none)</option>
+    </select>
+
+    <label class="bar-label" for="split-threshold">≤</label>
+    <input id="split-threshold" type="number" step="any" value="0"
+           disabled
+           title="Threshold — rows ≤ this value go to file 1, rows > this value go to file 2." />
+
+    <div class="vline"></div>
+
+    <button id="export-btn" disabled>Export CSV</button>
+
+  </div><!-- #bottom-bar -->
+
+  <!-- ── Status bar ──────────────────────────────────────────────── -->
+  <div id="status-bar">
+    <span id="status-rows">Rows: —</span>
+    <span id="status-wells">Wells selected: 0</span>
+    <span id="status-cols">Columns selected: 0</span>
+    <span id="status-output"></span>
+  </div>
+
+</div><!-- #app -->
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
