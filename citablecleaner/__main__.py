@@ -90,12 +90,15 @@ def main() -> None:
 
     _apply_dark_palette(app)
 
+    icon = QIcon()
     if _ICON_PATH.exists():
         icon = _load_ico_icon(str(_ICON_PATH))
         if not icon.isNull():
             app.setWindowIcon(icon)
 
     window = MainWindow()
+    if not icon.isNull():
+        window.setWindowIcon(icon)   # explicit set → taskbar picks it up on Windows
     window.show()
 
     sys.exit(app.exec())

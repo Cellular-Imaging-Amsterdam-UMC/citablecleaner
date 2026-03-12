@@ -539,10 +539,21 @@ class MainWindow(QMainWindow):
         # Populate column list (block signals to avoid spurious updates)
         self._col_list.blockSignals(True)
         self._col_list.clear()
+        # Restore saved selection when the file has the same columns as last time
+        saved_source = self._settings.value("column_selection_source_cols", [])
+        saved_checked = self._settings.value("column_selection_checked", [])
+        if not isinstance(saved_source, list):
+            saved_source = list(saved_source) if saved_source else []
+        if not isinstance(saved_checked, list):
+            saved_checked = list(saved_checked) if saved_checked else []
+        columns_match = sorted(saved_source) == sorted(columns)
+        checked_set: Set[str] = set(saved_checked) if columns_match else set(columns)
         for col in columns:
             item = QListWidgetItem(col)
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-            item.setCheckState(Qt.CheckState.Checked)
+            item.setCheckState(
+                Qt.CheckState.Checked if col in checked_set else Qt.CheckState.Unchecked
+            )
             self._col_list.addItem(item)
         self._col_list.blockSignals(False)
 
@@ -574,6 +585,7 @@ class MainWindow(QMainWindow):
     def _on_col_item_changed(self, item: QListWidgetItem) -> None:
         self._update_status_counts()
         self._update_export_button()
+        self._save_column_selection()
 
     def _col_select_all(self) -> None:
         self._col_list.blockSignals(True)
@@ -582,6 +594,7 @@ class MainWindow(QMainWindow):
         self._col_list.blockSignals(False)
         self._update_status_counts()
         self._update_export_button()
+        self._save_column_selection()
 
     def _col_deselect_all(self) -> None:
         self._col_list.blockSignals(True)
@@ -590,6 +603,7 @@ class MainWindow(QMainWindow):
         self._col_list.blockSignals(False)
         self._update_status_counts()
         self._update_export_button()
+        self._save_column_selection()
 
     def _on_browse_folder(self) -> None:
         folder = QFileDialog.getExistingDirectory(
@@ -645,6 +659,14 @@ class MainWindow(QMainWindow):
     # ══════════════════════════════════════════════════════════════════════
     # Helpers
     # ══════════════════════════════════════════════════════════════════════
+
+    def _save_column_selection(self) -> None:
+        """Persist the current column list and checked state to QSettings."""
+        all_cols = [self._col_list.item(i).text() for i in range(self._col_list.count())]
+        checked  = [self._col_list.item(i).text() for i in range(self._col_list.count())
+                    if self._col_list.item(i).checkState() == Qt.CheckState.Checked]
+        self._settings.setValue("column_selection_source_cols", all_cols)
+        self._settings.setValue("column_selection_checked", checked)
 
     def _selected_columns(self) -> List[str]:
         cols = []
