@@ -8,7 +8,7 @@ on:
   workflow_dispatch:   # allow manual trigger from the Actions tab
 
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 permissions:
   contents: read
