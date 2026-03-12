@@ -3,6 +3,9 @@
 #              (run from the CITableCleaner/ directory)
 #
 # Produces:  dist/CITableCleaner/CITableCleaner.exe  (folder distribution)
+#            Run CITableCleaner.exe from inside dist/CITableCleaner/ — it needs
+#            the _internal/ sibling folder next to it.
+#            For release: zip the dist/CITableCleaner/ folder itself.
 #
 # Why use this instead of citablecleaner.spec?
 #   • Folder builds skip the single-file extraction step → app starts instantly.
@@ -82,3 +85,12 @@ coll = COLLECT(
     upx_exclude=[],
     name='CITableCleaner',      # → dist/CITableCleaner/
 )
+
+# ── Post-build: remove the bare bootloader exe that PyInstaller writes to
+#    dist/ as a side-effect of the EXE step.  Only the folder in
+#    dist/CITableCleaner/ is a working distribution.
+import os as _os
+_stale = _os.path.join(DISTPATH, 'CITableCleaner.exe')
+if _os.path.isfile(_stale):
+    _os.remove(_stale)
+    print(f'Removed stale bootloader: {_stale}')
