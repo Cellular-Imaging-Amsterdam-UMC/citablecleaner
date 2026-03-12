@@ -1,0 +1,41 @@
+build/
+dist/
+
+# ── Results / output data ────────────────────────────
+results/
+
+# ── Python ────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+
+# ── Virtual environments ─────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+
+# ── Distribution / packaging ─────────────────────────
+build/
+dist/
+*.egg-info/
+*.egg
+*.whl
+sdist/
+
+# ── PyInstaller ──────────────────────────────────────
+*.manifest
+*.spec.bak
+
+# ── IDE / Editor ─────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── OS generated ─────────────────────────────────────
+Thumbs.db
+Desktop.ini
+.DS_Store
