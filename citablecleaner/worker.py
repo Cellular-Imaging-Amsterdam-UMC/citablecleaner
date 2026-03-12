@@ -7,13 +7,39 @@ ExportWorker — filters a DataFrame and writes the output CSV.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import List, Set
 
-from pathlib import Path
-
 import pandas as pd
 from PyQt6.QtCore import QThread, pyqtSignal
+
+# Well-ID pattern: one letter followed by 1-3 digits, e.g. A01, H12, P024
+_WELL_RE = re.compile(r'^[A-Pa-p]\d{1,3}$')
+
+# Preferred column names to probe, in priority order
+_WELL_COLUMN_CANDIDATES = (
+    "SeriesName", "Well", "WellName", "WellID", "Well_ID",
+    "Position", "Sample", "Series",
+)
+
+
+def _detect_well_column(df: pd.DataFrame) -> str | None:
+    """Return the name of the column that contains well identifiers, or None."""
+    # 1. Try known names (case-sensitive first, then case-insensitive)
+    cols_lower = {c.lower(): c for c in df.columns}
+    for candidate in _WELL_COLUMN_CANDIDATES:
+        if candidate in df.columns:
+            return candidate
+        if candidate.lower() in cols_lower:
+            return cols_lower[candidate.lower()]
+    # 2. Fall back: any string column whose values look like well IDs
+    for col in df.columns:
+        if df[col].dtype == object:
+            sample = df[col].dropna().head(20).astype(str)
+            if len(sample) > 0 and sample.map(lambda v: bool(_WELL_RE.match(v))).mean() >= 0.8:
+                return col
+    return None
 
 
 class LoadWorker(QThread):
@@ -24,8 +50,8 @@ class LoadWorker(QThread):
     -------
     loaded(df, wells, columns)
         df      : pandas DataFrame (full file)
-        wells   : sorted list of unique SeriesName values
-        columns : list of column names (excluding SeriesName which is always first)
+        wells   : sorted list of unique well-ID values
+        columns : list of column names (excluding the well column)
     progress(int)
         0-100 progress indication (emitted at start and end only for large files)
     error(str)
@@ -36,7 +62,7 @@ class LoadWorker(QThread):
     progress = pyqtSignal(int)
     error    = pyqtSignal(str)
 
-    WELL_COLUMN = "SeriesName"
+    WELL_COLUMN = "SeriesName"  # kept for ExportWorker compatibility; overridden at load time
 
     def __init__(self, path: str, parent=None):
         super().__init__(parent)
@@ -52,7 +78,12 @@ class LoadWorker(QThread):
             dialect = csv.Sniffer().sniff(sample, delimiters=",\t;|")
             return dialect.delimiter
         except csv.Error:
-            return ","  # fall back to comma
+            pass
+        # Sniffer failed — count each candidate in the first line and pick the winner
+        first_line = sample.split("\n")[0] if "\n" in sample else sample
+        counts = {d: first_line.count(d) for d in (",", "\t", ";", "|")}
+        best = max(counts, key=counts.get)
+        return best if counts[best] > 0 else ","
 
     def run(self) -> None:
         try:
@@ -65,12 +96,18 @@ class LoadWorker(QThread):
                 df = pd.read_csv(self._path, sep=sep)
             self.progress.emit(80)
 
-            if self.WELL_COLUMN not in df.columns:
+            well_col = _detect_well_column(df)
+            if well_col is None:
                 self.error.emit(
-                    f"Column '{self.WELL_COLUMN}' not found in the file.\n"
-                    f"Available columns: {', '.join(df.columns[:10])}"
+                    f"Could not find a well-identifier column in the file.\n"
+                    f"Tried: {', '.join(_WELL_COLUMN_CANDIDATES)}\n"
+                    f"Available columns: {', '.join(str(c) for c in df.columns[:10])}"
                 )
                 return
+
+            # Rename to SeriesName so the rest of the app works unchanged
+            if well_col != self.WELL_COLUMN:
+                df = df.rename(columns={well_col: self.WELL_COLUMN})
 
             wells   = sorted(df[self.WELL_COLUMN].dropna().unique().tolist(),
                              key=lambda w: (w[0], int(w[1:]) if w[1:].isdigit() else 0))

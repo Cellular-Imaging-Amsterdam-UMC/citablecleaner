@@ -24,6 +24,29 @@ import pandas as pd
 _df: pd.DataFrame | None = None
 _WELL_COLUMN = "SeriesName"
 
+# Well-ID pattern and candidate column names for auto-detection
+_WELL_RE = _re.compile(r'^[A-Pa-p]\d{1,3}$')
+_WELL_COLUMN_CANDIDATES = (
+    "SeriesName", "Well", "WellName", "WellID", "Well_ID",
+    "Position", "Sample", "Series",
+)
+
+
+def _detect_well_column(df: "pd.DataFrame") -> str | None:
+    """Return the column containing well identifiers, or None."""
+    cols_lower = {c.lower(): c for c in df.columns}
+    for candidate in _WELL_COLUMN_CANDIDATES:
+        if candidate in df.columns:
+            return candidate
+        if candidate.lower() in cols_lower:
+            return cols_lower[candidate.lower()]
+    for col in df.columns:
+        if df[col].dtype == object:
+            sample = df[col].dropna().head(20).astype(str)
+            if len(sample) > 0 and sample.map(lambda v: bool(_WELL_RE.match(v))).mean() >= 0.8:
+                return col
+    return None
+
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -34,7 +57,12 @@ def _sniff_separator(path: str) -> str:
         dialect = csv.Sniffer().sniff(sample, delimiters=",\t;|")
         return dialect.delimiter
     except csv.Error:
-        return ","
+        pass
+    # Sniffer failed — count each candidate in the first line and pick the winner
+    first_line = sample.split("\n")[0] if "\n" in sample else sample
+    counts = {d: first_line.count(d) for d in (",", "\t", ";", "|")}
+    best = max(counts, key=counts.get)
+    return best if counts[best] > 0 else ","
 
 
 def _sort_well_key(w: str):
@@ -78,11 +106,16 @@ def load_file(path: str, ext: str) -> dict[str, Any]:
         sep = _sniff_separator(path)
         df = pd.read_csv(path, sep=sep, low_memory=False)
 
-    if _WELL_COLUMN not in df.columns:
+    well_col = _detect_well_column(df)
+    if well_col is None:
         raise RuntimeError(
-            f"Column '{_WELL_COLUMN}' not found in the file. "
+            f"Could not find a well-identifier column. "
+            f"Tried: {', '.join(_WELL_COLUMN_CANDIDATES)}. "
             f"Available columns: {', '.join(str(c) for c in df.columns[:10])}"
         )
+    # Normalise to SeriesName so the rest of the code works unchanged
+    if well_col != _WELL_COLUMN:
+        df = df.rename(columns={well_col: _WELL_COLUMN})
 
     wells = sorted(
         df[_WELL_COLUMN].dropna().unique().tolist(),
@@ -95,11 +128,12 @@ def load_file(path: str, ext: str) -> dict[str, Any]:
     _df = df
 
     return {
-        "wells": wells,
-        "columns": columns,
-        "numeric_cols": numeric_cols,
-        "row_count": len(df),
+        "wells":               wells,
+        "columns":             columns,
+        "numeric_cols":        numeric_cols,
+        "row_count":           len(df),
         "single_row_per_well": single_row_per_well,
+        "well_column":         well_col,
     }
 
 

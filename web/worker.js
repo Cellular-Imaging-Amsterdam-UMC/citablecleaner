@@ -72,6 +72,7 @@ async function loadFile(buf, ext, sizeMB) {
       numericCols:      info.numeric_cols,
       rowCount:         info.row_count,
       singleRowPerWell: info.single_row_per_well,
+      wellColumn:       info.well_column,
     });
   } catch (err) {
     postMessage({ type: 'error', message: `Load failed: ${err}` });

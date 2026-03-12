@@ -165,8 +165,11 @@ function loadFile(file) {
   });
 }
 
-function onFileLoaded({ wells, columns, numericCols, rowCount, singleRowPerWell }) {
+function onFileLoaded({ wells, columns, numericCols, rowCount, singleRowPerWell, wellColumn }) {
   hideProgress();
+
+  // Update the 'always included' label with the actual well column name
+  snInfo.textContent = `${wellColumn || 'SeriesName'} \u00a0(always included)`;
 
   // Plate
   plate.setAvailableWells(wells);
