@@ -19,6 +19,8 @@ A browser-based version of CITableCleaner that runs entirely in the browser — 
 - Split export: export two CSVs split on a numeric column threshold (≤ / >).
 - Status bar shows selected wells, columns, and estimated output row counts (including split counts and sampling estimates).
 - A warning toast is shown when an `.xlsx` file larger than 50 MB is loaded, as parsing large Excel files with Pyodide is significantly slower than CSV.
+- **Column description tooltips** — when the loaded file's columns match a known table format (`cellstableheaders.csv` or `wellstableheaders.csv`), hovering over a column name shows a tooltip with its description. A download link for the matched header CSV appears in the bottom bar.
+- Compatible with modern browsers including Safari 15+ on macOS.
 
 > **Note:** On first load, Pyodide and pandas (~10 MB) are fetched from the CDN. Subsequent visits use the browser cache and load in under a second.
 
@@ -38,7 +40,7 @@ python -m http.server 8080
 npx serve web/
 ```
 
-Then open `http://localhost:8080` in Chrome or Edge (Firefox also supported).
+Then open `http://localhost:8080` in Chrome, Edge, Firefox, or Safari.
 
 ### Deployment
 
@@ -54,6 +56,8 @@ The `web/` folder is self-contained and is automatically deployed to GitHub Page
 | `web/plate.js` | Canvas `WellPlate` class (port of `plate_widget.py`) |
 | `web/worker.js` | Web Worker — boots Pyodide, handles all Python calls |
 | `web/app.py` | Pure Python data layer executed by Pyodide |
+| `web/cellstableheaders.csv` | Column descriptions for cell-level tables |
+| `web/wellstableheaders.csv` | Column descriptions for well-level tables |
 
 ---
 
@@ -76,6 +80,8 @@ CITableCleaner is built around a three-step workflow:
 3. **Export** — Choose an output folder and click *Export CSV*. One clean CSV is written for every selected well, containing only the chosen measurement columns. File names follow the pattern `<WellID>-cells.csv`.
 
 A status bar at the bottom always shows the current row count, number of selected wells, and number of selected columns.
+
+When the loaded file's columns match a known CI Analyze table format, **tooltips with column descriptions** are shown on hover in the column list. The descriptions are defined in `cellstableheaders.csv` and `wellstableheaders.csv`.
 
 ### Requirements
 

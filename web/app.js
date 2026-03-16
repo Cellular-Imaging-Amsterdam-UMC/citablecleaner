@@ -166,7 +166,7 @@ function loadFile(file) {
   });
 }
 
-function onFileLoaded({ wells, columns, numericCols, rowCount, singleRowPerWell, wellColumn }) {
+function onFileLoaded({ wells, columns, numericCols, rowCount, singleRowPerWell, wellColumn, colDescriptions, matchedHeaderCsv }) {
   hideProgress();
 
   // Update the 'always included' label with the actual well column name
@@ -174,11 +174,10 @@ function onFileLoaded({ wells, columns, numericCols, rowCount, singleRowPerWell,
 
   // Plate
   plate.setAvailableWells(wells);
-  plate.selectAll();
   plateFormatLbl.textContent = plate.plateLabel();
 
   // Column list
-  buildColList(columns, numericCols);
+  buildColList(columns, numericCols, colDescriptions || {});
 
   // Row sampling
   rowPctInput.disabled = singleRowPerWell;
@@ -192,10 +191,22 @@ function onFileLoaded({ wells, columns, numericCols, rowCount, singleRowPerWell,
   statusRows.textContent = `Rows: ${rowCount.toLocaleString()}`;
   updateStatus();
   updateExportBtn();
+
+  // Show/hide matched header CSV download link
+  const hdrLink = $('header-csv-link');
+  const hdrName = $('header-csv-name');
+  if (matchedHeaderCsv) {
+    hdrLink.href = matchedHeaderCsv;
+    hdrLink.download = matchedHeaderCsv;
+    hdrName.textContent = matchedHeaderCsv;
+    hdrLink.classList.remove('hidden');
+  } else {
+    hdrLink.classList.add('hidden');
+  }
 }
 
 // ── Column list ────────────────────────────────────────────────────────────
-function buildColList(columns, numericCols) {
+function buildColList(columns, numericCols, colDescriptions = {}) {
   colList.innerHTML = '';
 
   // Restore persisted selection if columns match
@@ -216,6 +227,8 @@ function buildColList(columns, numericCols) {
     cb.dataset.col = col;
     cb.addEventListener('change', () => { saveColSelection(); updateStatus(); updateExportBtn(); });
     lbl.append(cb, col);
+    const desc = colDescriptions[col];
+    if (desc) lbl.title = desc;
     colList.appendChild(lbl);
   }
 

@@ -43,6 +43,15 @@ async function init() {
     const resp = await fetch(new URL('app.py', self.location.href));
     appPyText = await resp.text();
     pyodide.runPython(appPyText);
+
+    // Pre-load header CSVs into the virtual FS so app.py can match them for column tooltips
+    for (const name of ['cellstableheaders.csv', 'wellstableheaders.csv']) {
+      try {
+        const r = await fetch(new URL(name, self.location.href));
+        if (r.ok) pyodide.FS.writeFile(`/tmp/${name}`, await r.text());
+      } catch (_) { /* non-critical — tooltips simply won't appear */ }
+    }
+
     postMessage({ type: 'progress', value: 100 });
     postMessage({ type: 'ready' });
   } catch (err) {
@@ -73,6 +82,8 @@ async function loadFile(buf, ext, sizeMB) {
       rowCount:         info.row_count,
       singleRowPerWell: info.single_row_per_well,
       wellColumn:       info.well_column,
+      colDescriptions:  info.col_descriptions || {},
+      matchedHeaderCsv: info.matched_header_csv || null,
     });
   } catch (err) {
     postMessage({ type: 'error', message: `Load failed: ${err}` });

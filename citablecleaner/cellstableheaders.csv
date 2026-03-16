@@ -1,0 +1,43 @@
+Column Name,Description
+SeriesName,(Typically Well Name of Multi Well Plate). Name of the image series. Combination of parent name and image name (e.g. ParentName_ImageName).
+CellID,Original cell identifier assigned during segmentation.
+Tile,The tile number within a multi-tile image acquisition. (field number in Well)
+CellNumGranules,Total number of granules detected within the entire cell area.
+NucleusNumGranules,Number of granules detected specifically within the nucleus region.
+CytoplasmNumGranules,Number of granules detected specifically within the cytoplasm region.
+CellArea,Total area of the cell in square micrometers (µm²).
+CellBoundingBox_1,X coordinate (column) of the top-left corner of the bounding box around the cell region in micrometers (µm).
+CellBoundingBox_2,Y coordinate (row) of the top-left corner of the bounding box around the cell region in micrometers (µm).
+CellBoundingBox_3,Width of the bounding box around the cell region in micrometers (µm).
+CellBoundingBox_4,Height of the bounding box around the cell region in micrometers (µm).
+CellGranulesChannelMeanIntensity,Mean pixel intensity of the granules fluorescence channel across the entire cell area.
+CellGranulesChannelTotalIntensity,Total summed intensity of the granules fluorescence channel across the entire cell area.
+NucleusArea,Area of the nucleus region in square micrometers (µm²).
+NucleusMeanIntensity,Mean pixel intensity of the nuclear stain channel within the nucleus region.
+NucleusTotalIntensity,Total summed intensity of the nuclear stain channel within the nucleus region.
+NucleusCentroid_1,X coordinate (column) of the nucleus centroid in micrometers (µm).
+NucleusCentroid_2,Y coordinate (row) of the nucleus centroid in micrometers (µm).
+NucleusBoundingBox_1,X coordinate (column) of the top-left corner of the bounding box around the nucleus region in micrometers (µm).
+NucleusBoundingBox_2,Y coordinate (row) of the top-left corner of the bounding box around the nucleus region in micrometers (µm).
+NucleusBoundingBox_3,Width of the bounding box around the nucleus region in micrometers (µm).
+NucleusBoundingBox_4,Height of the bounding box around the nucleus region in micrometers (µm).
+NucleusGranulesChannelMeanIntensity,Mean intensity of the granules fluorescence channel measured within the nucleus region.
+NucleusGranulesChannelTotalIntensity,Total summed intensity of the granules fluorescence channel within the nucleus region.
+CytoplasmArea,Area of the cytoplasm region (cell minus nucleus) in square micrometers (µm²).
+CytoplasmGranulesChannelMeanIntensity,Mean intensity of the granules fluorescence channel measured within the cytoplasm region.
+CytoplasmGranulesChannelTotalIntensity,Total summed intensity of the granules fluorescence channel within the cytoplasm region.
+CellMeanAreaGranules,Mean area of all granule objects detected within the entire cell in square micrometers (µm²).
+CellMeanIntensityGranules,Mean of the individual granule mean intensities for all granules within the entire cell.
+CellMeanCircularityGranules,Mean circularity of all granule objects detected within the entire cell. Circularity ranges 0 (elongated) to 1 (perfect circle).
+CellMeanSolidityGranules,Mean solidity of all granule objects detected within the entire cell. Solidity is the ratio of the object area to its convex hull area (0 to 1).
+CytoplasmMeanAreaGranules,Mean area of all granule objects detected within the cytoplasm region in square micrometers (µm²).
+CytoplasmMeanIntensityGranules,Mean of the individual granule mean intensities for all granules within the cytoplasm region.
+CytoplasmMeanCircularityGranules,Mean circularity of all granule objects detected within the cytoplasm region. Circularity ranges 0 (elongated) to 1 (perfect circle).
+CytoplasmMeanSolidityGranules,Mean solidity of all granule objects detected within the cytoplasm region. Solidity is the ratio of the object area to its convex hull area (0 to 1).
+NucleusMeanAreaGranules,Mean area of all granule objects detected within the nucleus region in square micrometers (µm²).
+NucleusMeanIntensityGranules,Mean of the individual granule mean intensities for all granules within the nucleus region.
+NucleusMeanCircularityGranules,Mean circularity of all granule objects detected within the nucleus region. Circularity ranges 0 (elongated) to 1 (perfect circle).
+NucleusMeanSolidityGranules,Mean solidity of all granule objects detected within the nucleus region. Solidity is the ratio of the object area to its convex hull area (0 to 1).
+ImageNumber,Unique numeric identifier per image tile. Calculated as i multiplied by 100000 plus the tile number where i is the index of the selected node.
+CellUID,Globally unique cell identifier across all images and tiles. Calculated as CellID plus 100000 multiplied by the running tile counter.
+ParentsName,Name of the parent container (e.g. well plate name). Set to n/a if no parent exists.

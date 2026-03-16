@@ -89,6 +89,38 @@ def _build_filtered(df: pd.DataFrame, wells: list, columns: list, row_pct: int) 
     return filtered[final_cols]
 
 
+# ── Header descriptions ─────────────────────────────────────────────────────
+
+_HEADER_CSVS = [
+    '/tmp/cellstableheaders.csv',
+    '/tmp/wellstableheaders.csv',
+]
+
+
+def _load_col_descriptions(columns: list) -> dict:
+    """
+    Return {column: description} for every column in *columns*.
+    Tries each header CSV in turn; uses the first where every data column
+    appears in the CSV (the CSV may list extra optional columns).
+    Columns not listed in the matched CSV get ''.
+    Returns {} when no CSV matches.
+    """
+    col_set = set(columns)
+    for path in _HEADER_CSVS:
+        try:
+            with open(path, newline='', encoding='utf-8-sig') as f:
+                reader = csv.DictReader(f)
+                rows = list(reader)
+            hdr_cols = {r['Column Name'] for r in rows}
+            if col_set <= (hdr_cols - {_WELL_COLUMN}):
+                desc = {r['Column Name']: r['Description'] for r in rows}
+                matched = path.rsplit('/', 1)[-1]
+                return {c: desc.get(c, '') for c in columns}, matched
+        except (OSError, KeyError):
+            continue
+    return {}, None
+
+
 # ── Public API ─────────────────────────────────────────────────────────────
 
 def load_file(path: str, ext: str) -> dict[str, Any]:
@@ -127,6 +159,8 @@ def load_file(path: str, ext: str) -> dict[str, Any]:
 
     _df = df
 
+    col_descriptions, matched_header_csv = _load_col_descriptions(columns)
+
     return {
         "wells":               wells,
         "columns":             columns,
@@ -134,6 +168,8 @@ def load_file(path: str, ext: str) -> dict[str, Any]:
         "row_count":           len(df),
         "single_row_per_well": single_row_per_well,
         "well_column":         well_col,
+        "col_descriptions":    col_descriptions,
+        "matched_header_csv":  matched_header_csv,
     }
 
 

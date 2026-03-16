@@ -42,6 +42,36 @@ def _detect_well_column(df: pd.DataFrame) -> str | None:
     return None
 
 
+_HEADER_CSVS = [
+    Path(__file__).parent / 'cellstableheaders.csv',
+    Path(__file__).parent / 'wellstableheaders.csv',
+]
+
+
+def _load_col_descriptions(columns: list) -> dict:
+    """
+    Return {column: description} for every column in *columns*.
+    Tries each header CSV in turn; uses the first where every data column
+    appears in the CSV (the CSV may list extra optional columns).
+    Columns not listed in the matched CSV get ''.
+    Returns {} when no CSV matches.
+    """
+    import csv as _csv
+    col_set = set(columns)
+    for path in _HEADER_CSVS:
+        try:
+            with open(path, newline='', encoding='utf-8-sig') as f:
+                reader = _csv.DictReader(f)
+                rows = list(reader)
+            hdr_cols = {r['Column Name'] for r in rows}
+            if col_set <= (hdr_cols - {'SeriesName'}):
+                desc = {r['Column Name']: r['Description'] for r in rows}
+                return {c: desc.get(c, '') for c in columns}
+        except (OSError, KeyError):
+            continue
+    return {}
+
+
 class LoadWorker(QThread):
     """
     Read a CSV file on a background thread.
@@ -58,7 +88,7 @@ class LoadWorker(QThread):
         Human-readable error message if loading failed.
     """
 
-    loaded   = pyqtSignal(object, list, list)   # (DataFrame, wells, columns)
+    loaded   = pyqtSignal(object, list, list, dict)   # (DataFrame, wells, columns, col_descriptions)
     progress = pyqtSignal(int)
     error    = pyqtSignal(str)
 
@@ -113,8 +143,9 @@ class LoadWorker(QThread):
                              key=lambda w: (w[0], int(w[1:]) if w[1:].isdigit() else 0))
             columns = [c for c in df.columns if c != self.WELL_COLUMN]
 
+            col_descriptions = _load_col_descriptions(columns)
             self.progress.emit(100)
-            self.loaded.emit(df, wells, columns)
+            self.loaded.emit(df, wells, columns, col_descriptions)
 
         except Exception as exc:  # noqa: BLE001
             self.error.emit(f"Failed to load file:\n{exc}")

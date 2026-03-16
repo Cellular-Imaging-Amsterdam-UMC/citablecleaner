@@ -569,7 +569,7 @@ class MainWindow(QMainWindow):
         self._load_worker.finished.connect(self._on_load_finished)
         self._load_worker.start()
 
-    def _on_csv_loaded(self, df: pd.DataFrame, wells: list, columns: list) -> None:
+    def _on_csv_loaded(self, df: pd.DataFrame, wells: list, columns: list, col_descriptions: dict) -> None:
         self._df = df
 
         # Update plate widget
@@ -596,6 +596,9 @@ class MainWindow(QMainWindow):
             item.setCheckState(
                 Qt.CheckState.Checked if col in checked_set else Qt.CheckState.Unchecked
             )
+            desc = col_descriptions.get(col, '')
+            if desc:
+                item.setToolTip(desc)
             self._col_list.addItem(item)
         self._col_list.blockSignals(False)
 

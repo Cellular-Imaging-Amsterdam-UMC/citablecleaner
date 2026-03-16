@@ -1,0 +1,71 @@
+Column Name,Description
+SeriesName,"Name of the image series (typically the well name, e.g. ParentName_WellName)."
+NumCells,Total number of cells detected across all tiles of this well.
+Tiles_MeanNumCells,Mean number of cells per tile across all tiles of this well.
+Tiles_StdNumCells,Standard deviation of the number of cells per tile across all tiles.
+Tiles_MedianNumCells,Median number of cells per tile across all tiles.
+PercentageCellsWithGranules,Percentage of cells (0-100) that contain at least one granule.
+MeanCellNumberGranules,Mean number of granules per cell across all cells in this well.
+StdCellNumberGranules,Standard deviation of the number of granules per cell.
+MedianCellNumberGranules,Median number of granules per cell.
+MeanNucleusNumberGranules,Mean number of granules per nucleus across all cells.
+StdNucleusNumberGranules,Standard deviation of the number of granules per nucleus.
+MedianNucleusNumberGranules,Median number of granules per nucleus.
+MeanCytoplasmNumberGranules,Mean number of granules per cytoplasm across all cells.
+StdCytoplasmNumberGranules,Standard deviation of the number of granules per cytoplasm.
+MedianCytoplasmNumberGranules,Median number of granules per cytoplasm.
+MeanCellArea,Mean cell area across all cells in square micrometers (um2).
+StdCellArea,Standard deviation of cell area in square micrometers (um2).
+MeanCytoplasmArea,Mean cytoplasm area across all cells in square micrometers (um2).
+StdCytoplasmArea,Standard deviation of cytoplasm area in square micrometers (um2).
+MeanNucleusArea,Mean nucleus area across all cells in square micrometers (um2).
+StdNucleusArea,Standard deviation of nucleus area in square micrometers (um2).
+MeanNucleusIntensity,Mean of the per-cell nucleus mean intensities (nuclear stain channel).
+StdNucleusIntensity,Standard deviation of the per-cell nucleus mean intensities (nuclear stain channel).
+MeanNucleusTotalIntensity,Mean of the per-cell nucleus total intensities (nuclear stain channel).
+StdNucleusTotalIntensity,Standard deviation of the per-cell nucleus total intensities.
+MeanCellIntensityGranules,Mean of the per-cell mean granule object intensities (averaged over individual granule objects within the cell).
+StdCellIntensityGranules,Standard deviation of the per-cell mean granule object intensities.
+MeanNucleusIntensityGranules,Mean of the per-nucleus mean granule object intensities.
+StdNucleusIntensityGranules,Standard deviation of the per-nucleus mean granule object intensities.
+MeanCytoplasmIntensityGranules,Mean of the per-cytoplasm mean granule object intensities.
+StdCytoplasmIntensityGranules,Standard deviation of the per-cytoplasm mean granule object intensities.
+MeanCellGranulesChannelIntensity,Mean of the per-cell mean pixel intensities of the granules fluorescence channel over the entire cell area (background included).
+MeanCellGranulesChannelTotalIntensity,Mean of the per-cell total pixel intensities of the granules fluorescence channel over the entire cell area.
+MeanCytoplasmGranulesChannelIntensity,Mean of the per-cell mean pixel intensities of the granules fluorescence channel within the cytoplasm region.
+MeanCytoplasmGranulesChannelTotalIntensity,Mean of the per-cell total pixel intensities of the granules fluorescence channel within the cytoplasm region.
+MeanNucleusGranulesChannelIntensity,Mean of the per-cell mean pixel intensities of the granules fluorescence channel within the nucleus region.
+MeanNucleusGranulesChannelTotalIntensity,Mean of the per-cell total pixel intensities of the granules fluorescence channel within the nucleus region.
+MedianCellGranulesChannelIntensity,Median of the per-cell mean pixel intensities of the granules fluorescence channel over the entire cell area.
+MedianCytoplasmGranulesChannelIntensity,Median of the per-cell mean pixel intensities of the granules fluorescence channel within the cytoplasm region.
+MedianNucleusGranulesChannelIntensity,Median of the per-cell mean pixel intensities of the granules fluorescence channel within the nucleus region.
+MinimumCellGranulesChannelIntensity,Minimum per-cell mean pixel intensity of the granules fluorescence channel over the entire cell area. Used as a background estimate.
+MinimumCytoplasmGranulesChannelIntensity,Minimum per-cell mean pixel intensity of the granules fluorescence channel within the cytoplasm region.
+MinimumNucleusGranulesChannelIntensity,Minimum per-cell mean pixel intensity of the granules fluorescence channel within the nucleus region.
+MeanCellGranulesChannelIntensityCorrected,"Background-corrected mean cell granule channel intensity: MeanCellGranulesChannelIntensity minus the minimum MeanCellGranulesChannelIntensity across all wells in the selection."
+MeanCellMarkerChannelIntensity,(Marker channel only) Mean of the per-cell mean pixel intensities of the marker fluorescence channel over the entire cell area.
+StdCellMarkerChannelIntensity,(Marker channel only) Standard deviation of the per-cell mean marker channel intensities.
+MeanCellMarkerChannelTotalIntensity,(Marker channel only) Mean of the per-cell total pixel intensities of the marker fluorescence channel over the entire cell area.
+MeanCytoplasmMarkerChannelIntensity,(Marker channel only) Mean of the per-cell mean pixel intensities of the marker channel within the cytoplasm region.
+StdCytoplasmMarkerChannelIntensity,(Marker channel only) Standard deviation of per-cell mean marker channel intensities within the cytoplasm.
+MeanCytoplasmMarkerChannelTotalIntensity,(Marker channel only) Mean of the per-cell total marker channel intensities within the cytoplasm.
+MeanNucleusMarkerChannelIntensity,(Marker channel only) Mean of the per-cell mean pixel intensities of the marker channel within the nucleus region.
+StdNucleusMarkerChannelIntensity,(Marker channel only) Standard deviation of per-cell mean marker channel intensities within the nucleus.
+NucleusMarkerChannelTotalIntensity,(Marker channel only) Mean of the per-cell total marker channel intensities within the nucleus region.
+MedianCellMarkerChannelIntensity,(Marker channel only) Median of the per-cell mean marker channel intensities over the entire cell area.
+MedianCytoplasmMarkerChannelIntensity,(Marker channel only) Median of the per-cell mean marker channel intensities within the cytoplasm region.
+MedianNucleusMarkerChannelIntensity,(Marker channel only) Median of the per-cell mean marker channel intensities within the nucleus region.
+MinimumCellMarkerChannelIntensity,(Marker channel only) Minimum per-cell mean marker channel intensity over the entire cell area. Used as background estimate.
+MinimumCytoplasmMarkerChannelIntensity,(Marker channel only) Minimum per-cell mean marker channel intensity within the cytoplasm region.
+MinimumNucleusMarkerChannelIntensity,(Marker channel only) Minimum per-cell mean marker channel intensity within the nucleus region.
+MeanCellMarkerChannelIntensityCorrected,(Marker channel only) Background-corrected mean marker channel intensity (MeanCellMarkerChannelIntensity minus minimum marker intensity of this well).
+PositiveMarkerCellsNumber,(Marker channel only) Number of cells classified as marker-positive (outlier detection based on MAD threshold).
+PositiveMarkerCellsPercentage,(Marker channel only) Percentage of all cells in the well that are marker-positive.
+PositiveMarkerCellsMeanCellNumberGranulesPercentage,(Marker channel only) Mean number of cell granules (x100) among marker-positive cells.
+PositiveMarkerCellsMeanNucleusNumberGranulesPercentage,(Marker channel only) Mean number of nuclear granules (x100) among marker-positive cells.
+PositiveMarkerCellsMeanCytoplasmNumberGranulesPercentage,(Marker channel only) Mean number of cytoplasmic granules (x100) among marker-positive cells.
+PositiveMarkerCellsWithGranulesPercentage,(Marker channel only) Percentage of marker-positive cells that also contain at least one granule.
+AvgNumGranulesPositiveMarkerCells,(Marker channel only) Average number of granules per marker-positive cell.
+AvgNumGranulesCells,Average number of granules per cell computed as total granule count divided by total number of cells.
+ImageNumber,Numeric identifier for this well/series. Calculated as the series index multiplied by 10000.
+ParentsName,Name of the parent container (e.g. well plate name). Set to n/a if no parent exists.

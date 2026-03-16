@@ -252,6 +252,24 @@ button#export-btn:disabled {
 #bottom-bar select#split-col { min-width: 130px; }
 #bottom-bar input#split-threshold { width: 100px; }
 
+.spacer { flex: 1; }
+
+.bar-icon-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--dim);
+  text-decoration: none;
+  font-size: 9pt;
+  white-space: nowrap;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: color 0.15s;
+}
+.bar-icon-link:hover { color: var(--accent); }
+.bar-icon-link.hidden { display: none; }
+.bar-icon-link svg { vertical-align: middle; }
+
 /* ── Status bar ──────────────────────────────────────────────────────── */
 #status-bar {
   display: flex;
