@@ -97,6 +97,11 @@
 
 </div><!-- #app -->
 
+<!-- coi-serviceworker adds COOP/COEP headers via a service worker so that
+     SharedArrayBuffer (required by Pyodide) is available on hosts like
+     GitHub Pages that don't send those headers natively. Safari 15+ supports
+     service workers; on the very first load the page reloads once to activate. -->
+<script src="https://unpkg.com/coi-serviceworker@0.1.7/coi-serviceworker.min.js"></script>
 <script type="module" src="app.js"></script>
 </body>
 </html>

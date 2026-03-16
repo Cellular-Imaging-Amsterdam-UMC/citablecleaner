@@ -58,7 +58,8 @@ let currentFile  = null;  // File object
 let outputStats  = null;  // last rowStats response from worker
 // ── Init Web Worker ────────────────────────────────────────────────────────
 function startWorker() {
-  worker = new Worker('./worker.js');
+  // Use import.meta.url so the URL resolves correctly in Safari's module context.
+  worker = new Worker(new URL('./worker.js', import.meta.url));
   worker.onmessage = onWorkerMessage;
   worker.postMessage({ type: 'init' });
 }
