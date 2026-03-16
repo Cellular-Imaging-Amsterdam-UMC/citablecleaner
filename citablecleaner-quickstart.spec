@@ -28,6 +28,8 @@ a = Analysis(
     binaries=pyqt6_binaries + pandas_binaries,
     datas=[
         ('citablecleaner/resources', 'citablecleaner/resources'),
+        ('citablecleaner/cellstableheaders.csv', 'citablecleaner'),
+        ('citablecleaner/wellstableheaders.csv', 'citablecleaner'),
         ('version.txt', '.'),
     ] + pyqt6_datas + pandas_datas,
     hiddenimports=[
