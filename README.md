@@ -24,7 +24,7 @@ A browser-based version of CITableCleaner that runs entirely in the browser — 
 
 > **Note:** On first load, Pyodide and pandas (~10 MB) are fetched from the CDN. Subsequent visits use the browser cache and load in under a second.
 
-![CITableCleaner web app](screenshots/WebApp.png)
+![CITableCleaner web app](screenshots/citablecleaner-web.gif)
 
 ### Running locally
 
@@ -69,6 +69,8 @@ A standalone Windows desktop application for offline use or very large files.
 
 Download the latest `CITableCleaner.zip` from the [Releases](../../releases) page, unzip, and run `CITableCleaner.exe`. No installation required.
 
+![Download CITableCleaner](screenshots/github-download-local.gif)
+
 ### How it works
 
 CITableCleaner is built around a three-step workflow:
@@ -82,6 +84,8 @@ CITableCleaner is built around a three-step workflow:
 A status bar at the bottom always shows the current row count, number of selected wells, and number of selected columns.
 
 When the loaded file's columns match a known CI Analyze table format, **tooltips with column descriptions** are shown on hover in the column list. The descriptions are defined in `cellstableheaders.csv` and `wellstableheaders.csv`.
+
+![CITableCleaner desktop app](screenshots/citablecleaner-local.gif)
 
 ### Requirements
 
