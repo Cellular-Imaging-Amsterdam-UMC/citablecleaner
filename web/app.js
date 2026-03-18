@@ -117,7 +117,7 @@ function onWorkerMessage(e) {
 // ── Well plate ─────────────────────────────────────────────────────────────
 function initPlate() {
   plate = new WellPlate(plateCanvas);
-  plate.addEventListener('selectionChanged', () => updateStatus());
+  plate.addEventListener('selectionChanged', () => { updateStatus(); updateExportBtn(); });
 }
 
 // ── File loading ───────────────────────────────────────────────────────────
@@ -135,7 +135,23 @@ document.addEventListener('dragover', e => {
 document.addEventListener('drop', e => {
   e.preventDefault();
   const f = e.dataTransfer.files[0];
-  if (f) loadFile(f);
+  if (!f) return;
+
+  // Detect files dragged from inside a Windows ZIP shell folder.
+  // The text/uri-list type carries the full file URI, which will contain
+  // ".zip/" or ".zip\" (or their percent-encoded forms) when the source is
+  // a virtual ZIP directory in Windows Explorer.
+  const uriList = e.dataTransfer.getData('text/uri-list') || '';
+  if (/\.zip(?:[/\\]|%5c|%2f)/i.test(uriList)) {
+    showToast(
+      '\u26a0 This file is inside a ZIP archive. '
+      + 'Please extract the ZIP first, then load the extracted file.',
+      true, 8000
+    );
+    return;
+  }
+
+  loadFile(f);
 });
 
 function loadFile(file) {
@@ -180,6 +196,7 @@ function onFileLoaded({ wells, columns, numericCols, rowCount, singleRowPerWell,
   buildColList(columns, numericCols, colDescriptions || {});
 
   // Row sampling
+  if (singleRowPerWell) rowPctInput.value = 100;
   rowPctInput.disabled = singleRowPerWell;
   rowPctInput.title = singleRowPerWell
     ? 'Disabled: only one row per well in this data.'

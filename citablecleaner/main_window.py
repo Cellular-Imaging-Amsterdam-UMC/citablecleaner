@@ -554,6 +554,19 @@ class MainWindow(QMainWindow):
 
     def _start_load(self, path: str) -> None:
         """Common entry point for file-dialog and drag-and-drop loads."""
+        # Block files opened from inside a ZIP archive (Windows ZIP-as-folder view).
+        # When Windows treats a .zip as a folder, the resulting path contains a .zip
+        # component in a parent directory, e.g. C:\archive.zip\file.csv.
+        if any(part.lower().endswith('.zip') for part in Path(path).parts[:-1]):
+            QMessageBox.warning(
+                self,
+                "File inside ZIP archive",
+                f"'{Path(path).name}' appears to be inside a ZIP archive.\n\n"
+                "Please extract the ZIP file first, then open the extracted file.\n\n"
+                "Loading directly from inside a ZIP archive may produce incomplete results.",
+            )
+            return
+
         self._last_csv_path = path
         self._settings.setValue("last_csv_path", path)
 
@@ -608,6 +621,8 @@ class MainWindow(QMainWindow):
         # Disable row sampling when there is at most 1 row per well
         max_rows_per_well = df.groupby("SeriesName").size().max() if len(df) else 0
         single_row = max_rows_per_well <= 1
+        if single_row:
+            self._row_pct_spin.setValue(100)
         self._row_pct_spin.setEnabled(not single_row)
         self._row_pct_spin.setToolTip(
             "Disabled: only one row per well in this data."
