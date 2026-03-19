@@ -28,7 +28,7 @@
     <!-- hidden real file input -->
     <input id="file-input" type="file"
            accept=".csv,.tsv,.txt,.xlsx"
-           style="display:none" />
+           aria-labelledby="load-btn" />
     <span id="file-label">No file loaded &nbsp;(or drag &amp; drop a CSV / Excel file here)</span>
     <div id="progress-wrap">
       <progress id="load-progress" max="100" value="0"></progress>
@@ -65,7 +65,7 @@
   <!-- ── Bottom bar ──────────────────────────────────────────────── -->
   <div id="bottom-bar">
 
-    <span id="cells-row-sampling" style="display:contents">
+    <span id="cells-row-sampling">
     <label class="bar-label" for="row-pct">Row sampling:</label>
     <input id="row-pct" type="number" min="1" max="100" value="100"
            title="Percentage of rows to export. 10 % → every 10th row." />
@@ -73,7 +73,7 @@
     <div class="vline"></div>
     </span>
 
-    <span id="cells-split" style="display:contents">
+    <span id="cells-split">
     <label class="bar-label" for="split-col">Split by:</label>
     <select id="split-col" disabled>
       <option value="(none)">(none)</option>
@@ -85,7 +85,7 @@
            title="Threshold — rows ≤ this value go to file 1, rows > this value go to file 2." />
     </span>
 
-    <span id="cells-aggregate" style="display:contents">
+    <span id="cells-aggregate">
     <div class="vline"></div>
     <label id="aggregate-wells-label" class="bar-label" for="aggregate-wells"
            title="When checked, export aggregated wells tables (one row per well) instead of raw split cells tables. Only available for cells tables when a split column is selected.">As wells table:</label>
