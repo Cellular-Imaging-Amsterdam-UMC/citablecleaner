@@ -4,7 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CITableCleaner</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" href="favicon.ico" type="image/x-icon" />
+  <link rel="stylesheet" href="style.css?v=2" />
 </head>
 <body>
 
@@ -64,13 +65,15 @@
   <!-- ── Bottom bar ──────────────────────────────────────────────── -->
   <div id="bottom-bar">
 
+    <span id="cells-row-sampling" style="display:contents">
     <label class="bar-label" for="row-pct">Row sampling:</label>
     <input id="row-pct" type="number" min="1" max="100" value="100"
            title="Percentage of rows to export. 10 % → every 10th row." />
     <span class="bar-label">%</span>
-
     <div class="vline"></div>
+    </span>
 
+    <span id="cells-split" style="display:contents">
     <label class="bar-label" for="split-col">Split by:</label>
     <select id="split-col" disabled>
       <option value="(none)">(none)</option>
@@ -80,6 +83,15 @@
     <input id="split-threshold" type="number" step="any" value="0"
            disabled
            title="Threshold — rows ≤ this value go to file 1, rows > this value go to file 2." />
+    </span>
+
+    <span id="cells-aggregate" style="display:contents">
+    <div class="vline"></div>
+    <label id="aggregate-wells-label" class="bar-label" for="aggregate-wells"
+           title="When checked, export aggregated wells tables (one row per well) instead of raw split cells tables. Only available for cells tables when a split column is selected.">As wells table:</label>
+    <input id="aggregate-wells" type="checkbox" disabled
+           title="Export aggregated wells tables (one row per well) instead of raw split cells tables." />
+    </span>
 
     <div class="vline"></div>
 
@@ -123,7 +135,7 @@
      SharedArrayBuffer (required by Pyodide) is available on hosts like
      GitHub Pages that don't send those headers natively. Safari 15+ supports
      service workers; on the very first load the page reloads once to activate. -->
-<script src="https://unpkg.com/coi-serviceworker@0.1.7/coi-serviceworker.min.js"></script>
-<script type="module" src="app.js"></script>
+<script src="coi-serviceworker.min.js"></script>
+<script type="module" src="app.js?v=2"></script>
 </body>
 </html>

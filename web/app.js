@@ -12,9 +12,11 @@
 import { WellPlate } from './plate.js';
 
 // ── Constants ──────────────────────────────────────────────────────────────
-const XLSX_WARN_MB = 50;
-const LS_SOURCE    = 'col_selection_source_cols';
-const LS_CHECKED   = 'col_selection_checked';
+const XLSX_WARN_MB     = 50;
+const LS_SOURCE        = 'col_selection_source_cols';
+const LS_CHECKED       = 'col_selection_checked';
+const LS_WELLS_SOURCE  = 'col_selection_wells_source_cols';
+const LS_WELLS_CHECKED = 'col_selection_wells_checked';
 
 // ── DOM refs ───────────────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
@@ -43,6 +45,7 @@ const snInfo         = $('sn-info');
 const rowPctInput    = $('row-pct');
 const splitColSel    = $('split-col');
 const splitThreshold = $('split-threshold');
+const aggregateCheck = $('aggregate-wells');
 const exportBtn      = $('export-btn');
 
 const statusRows     = $('status-rows');
@@ -56,6 +59,13 @@ let worker       = null;
 let workerReady  = false;
 let currentFile  = null;  // File object
 let outputStats  = null;  // last rowStats response from worker
+// Aggregation state
+let _isCellsTable      = false;
+let _computedWellsCols = [];   // wells columns computable from current cells file
+let _wellsColDescs     = {};   // descriptions for wells columns
+let _cellsColumns      = [];   // original cells columns (for toggle-back)
+let _cellsColDescs     = {};   // descriptions for cells columns
+let _showingWellsCols  = false; // whether col-list shows wells cols
 // ── Init Web Worker ────────────────────────────────────────────────────────
 function startWorker() {
   // Use import.meta.url so the URL resolves correctly in Safari's module context.
@@ -135,23 +145,7 @@ document.addEventListener('dragover', e => {
 document.addEventListener('drop', e => {
   e.preventDefault();
   const f = e.dataTransfer.files[0];
-  if (!f) return;
-
-  // Detect files dragged from inside a Windows ZIP shell folder.
-  // The text/uri-list type carries the full file URI, which will contain
-  // ".zip/" or ".zip\" (or their percent-encoded forms) when the source is
-  // a virtual ZIP directory in Windows Explorer.
-  const uriList = e.dataTransfer.getData('text/uri-list') || '';
-  if (/\.zip(?:[/\\]|%5c|%2f)/i.test(uriList)) {
-    showToast(
-      '\u26a0 This file is inside a ZIP archive. '
-      + 'Please extract the ZIP first, then load the extracted file.',
-      true, 8000
-    );
-    return;
-  }
-
-  loadFile(f);
+  if (f) loadFile(f);
 });
 
 function loadFile(file) {
@@ -182,11 +176,30 @@ function loadFile(file) {
   });
 }
 
-function onFileLoaded({ wells, columns, numericCols, rowCount, singleRowPerWell, wellColumn, colDescriptions, matchedHeaderCsv }) {
+function onFileLoaded({ wells, columns, numericCols, rowCount, singleRowPerWell, wellColumn, colDescriptions, matchedHeaderCsv, isCellsTable, availableWellsCols, wellsColDescs }) {
   hideProgress();
 
   // Update the 'always included' label with the actual well column name
   snInfo.textContent = `${wellColumn || 'SeriesName'} \u00a0(always included)`;
+
+  // Aggregation state
+  _isCellsTable      = isCellsTable || false;
+  _computedWellsCols = availableWellsCols || [];
+  _wellsColDescs     = wellsColDescs || {};
+  _cellsColumns      = columns;
+  _cellsColDescs     = colDescriptions || {};
+  _showingWellsCols  = false;
+
+  // Reset aggregate checkbox
+  aggregateCheck.checked  = false;
+  aggregateCheck.disabled = true;
+
+  // Show/hide cells-table-only controls
+  const isWellsTable = matchedHeaderCsv === 'wellstableheaders.csv';
+  console.log('[CITableCleaner] matchedHeaderCsv =', matchedHeaderCsv, '| isWellsTable =', isWellsTable);
+  $('cells-row-sampling').classList.toggle('hidden', isWellsTable);
+  $('cells-split').classList.toggle('hidden', isWellsTable);
+  $('cells-aggregate').classList.toggle('hidden', isWellsTable);
 
   // Plate
   plate.setAvailableWells(wells);
@@ -225,6 +238,7 @@ function onFileLoaded({ wells, columns, numericCols, rowCount, singleRowPerWell,
 // ── Column list ────────────────────────────────────────────────────────────
 function buildColList(columns, numericCols, colDescriptions = {}) {
   colList.innerHTML = '';
+  _showingWellsCols = false;
 
   // Restore persisted selection if columns match
   let checkedSet = new Set(columns);
@@ -252,6 +266,36 @@ function buildColList(columns, numericCols, colDescriptions = {}) {
   saveColSelection();
 }
 
+function buildWellsColList(wellsCols, descriptions = {}) {
+  colList.innerHTML = '';
+  _showingWellsCols = true;
+
+  // Restore persisted wells-column selection if available
+  let checkedSet = new Set(wellsCols);
+  try {
+    const savedSource  = JSON.parse(localStorage.getItem(LS_WELLS_SOURCE)  || '[]');
+    const savedChecked = JSON.parse(localStorage.getItem(LS_WELLS_CHECKED) || '[]');
+    const match = savedSource.length === wellsCols.length &&
+      [...wellsCols].every(c => savedSource.includes(c));
+    if (match) checkedSet = new Set(savedChecked);
+  } catch (_) { /* ignore */ }
+
+  for (const col of wellsCols) {
+    const lbl = document.createElement('label');
+    const cb  = document.createElement('input');
+    cb.type    = 'checkbox';
+    cb.checked = checkedSet.has(col);
+    cb.dataset.col = col;
+    cb.addEventListener('change', () => { saveWellsColSelection(); updateStatus(); updateExportBtn(); });
+    lbl.append(cb, col);
+    const desc = descriptions[col];
+    if (desc) lbl.title = desc;
+    colList.appendChild(lbl);
+  }
+
+  saveWellsColSelection();
+}
+
 function selectedColumns() {
   return [...colList.querySelectorAll('input[type=checkbox]:checked')]
     .map(cb => cb.dataset.col);
@@ -264,13 +308,25 @@ function saveColSelection() {
   localStorage.setItem(LS_CHECKED, JSON.stringify(checked));
 }
 
+function saveWellsColSelection() {
+  const all     = [...colList.querySelectorAll('input[type=checkbox]')].map(cb => cb.dataset.col);
+  const checked = selectedColumns();
+  localStorage.setItem(LS_WELLS_SOURCE,  JSON.stringify(all));
+  localStorage.setItem(LS_WELLS_CHECKED, JSON.stringify(checked));
+}
+
+function saveCurrentColSelection() {
+  if (_showingWellsCols) saveWellsColSelection();
+  else saveColSelection();
+}
+
 selAllColBtn.addEventListener('click', () => {
   colList.querySelectorAll('input[type=checkbox]').forEach(cb => cb.checked = true);
-  saveColSelection(); updateStatus(); updateExportBtn();
+  saveCurrentColSelection(); updateStatus(); updateExportBtn();
 });
 deselAllColBtn.addEventListener('click', () => {
   colList.querySelectorAll('input[type=checkbox]').forEach(cb => cb.checked = false);
-  saveColSelection(); updateStatus(); updateExportBtn();
+  saveCurrentColSelection(); updateStatus(); updateExportBtn();
 });
 
 // ── Well buttons ───────────────────────────────────────────────────────────
@@ -298,10 +354,29 @@ function buildSplitCombo(numericCols) {
 splitColSel.addEventListener('change', () => {
   const chosen = splitColSel.value !== '(none)';
   splitThreshold.disabled = !chosen;
+  // Enable aggregate checkbox only for cells tables when split is active
+  const canAggregate = _isCellsTable && chosen && _computedWellsCols.length > 0;
+  aggregateCheck.disabled = !canAggregate;
+  if (!chosen) {
+    aggregateCheck.checked = false;
+    if (_showingWellsCols) {
+      buildColList(_cellsColumns, [], _cellsColDescs);
+    }
+  }
   if (chosen) {
     worker.postMessage({ type: 'colRange', colName: splitColSel.value });
   }
   requestRowStats();
+});
+
+aggregateCheck.addEventListener('change', () => {
+  if (aggregateCheck.checked) {
+    buildWellsColList(_computedWellsCols, _wellsColDescs);
+  } else {
+    buildColList(_cellsColumns, [], _cellsColDescs);
+  }
+  updateStatus();
+  updateExportBtn();
 });
 
 rowPctInput.addEventListener('input', () => requestRowStats());
@@ -317,13 +392,16 @@ exportBtn.addEventListener('click', () => {
   exportBtn.disabled = true;
   exportBtn.textContent = 'Exporting…';
 
+  const isAggr = aggregateCheck.checked && !aggregateCheck.disabled;
   worker.postMessage({
-    type:      'export',
+    type:             'export',
     wells,
-    columns,
-    rowPct:    Number(rowPctInput.value) || 100,
-    splitCol:  splitColSel.value,
-    threshold: Number(splitThreshold.value) || 0,
+    columns:          isAggr ? [] : columns,
+    rowPct:           Number(rowPctInput.value) || 100,
+    splitCol:         splitColSel.value,
+    threshold:        Number(splitThreshold.value) || 0,
+    aggregateToWells: isAggr,
+    wellsColumns:     isAggr ? columns : [],
   });
 });
 
@@ -386,23 +464,25 @@ function requestRowStats() {
   if (!wells.length) { outputStats = null; renderOutputStatus(); return; }
   statsDebounce = setTimeout(() => {
     worker.postMessage({
-      type:      'rowStats',
+      type:             'rowStats',
       wells,
-      rowPct:    Number(rowPctInput.value) || 100,
-      splitCol:  splitColSel.value,
-      threshold: Number(splitThreshold.value) || 0,
+      rowPct:           Number(rowPctInput.value) || 100,
+      splitCol:         splitColSel.value,
+      threshold:        Number(splitThreshold.value) || 0,
+      aggregateToWells: aggregateCheck.checked && !aggregateCheck.disabled,
     });
   }, 150);
 }
 
 function renderOutputStatus() {
   if (!outputStats) { statusOutput.textContent = ''; return; }
-  const { step, sampled, low, high } = outputStats;
+  const { step, sampled, low, high, aggregate } = outputStats;
   const approx = step > 1 ? '~' : '';
   const thr    = Number(splitThreshold.value);
   if (low !== undefined && high !== undefined) {
+    const unit = aggregate ? 'wells' : '';
     statusOutput.textContent =
-      `Output:  ≤${thr}: ${approx}${low.toLocaleString()}  |  >${thr}: ${approx}${high.toLocaleString()}`;
+      `Output:  ≤${thr}: ${aggregate ? '' : approx}${low.toLocaleString()} ${unit} |  >${thr}: ${aggregate ? '' : approx}${high.toLocaleString()} ${unit}`;
   } else if (step > 1) {
     statusOutput.textContent = `Output: ${approx}${sampled.toLocaleString()} rows`;
   } else {

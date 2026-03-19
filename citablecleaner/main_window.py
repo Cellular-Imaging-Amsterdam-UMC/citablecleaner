@@ -31,6 +31,7 @@ import pandas as pd
 from PyQt6.QtCore import Qt, QSettings, QThread
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDoubleSpinBox,
     QFileDialog,
@@ -53,7 +54,12 @@ from PyQt6.QtWidgets import (
 )
 
 from citablecleaner.plate_widget import WellPlateWidget
-from citablecleaner.worker import ExportWorker, LoadWorker
+from citablecleaner.worker import (
+    ExportWorker,
+    LoadWorker,
+    available_wells_columns,
+    load_wells_col_descriptions,
+)
 
 _VERSION_FILE = Path(__file__).parent.parent / "version.txt"
 try:
@@ -256,8 +262,17 @@ class MainWindow(QMainWindow):
         self._output_folder: str = self._settings.value(
             "output_folder", str(Path.home())
         )
-        self._load_worker:   LoadWorker   | None = None
-        self._export_worker: ExportWorker | None = None
+        self._load_worker:        LoadWorker   | None = None
+        self._export_worker:       ExportWorker | None = None
+        self._export_worker_split2: ExportWorker | None = None
+
+        # ── Cells/wells aggregation state ──────────────────────────────────
+        self._is_cells_table:        bool      = False
+        self._computable_wells_cols: List[str] = []
+        self._wells_col_descs:       dict      = {}
+        self._cells_columns:         List[str] = []
+        self._cells_col_descs:       dict      = {}
+        self._showing_wells_cols:    bool      = False
 
         # ── Build UI ──────────────────────────────────────────────────────
         self._build_toolbar()
@@ -424,14 +439,14 @@ class MainWindow(QMainWindow):
         self._folder_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         h.addWidget(self._folder_label, stretch=1)
 
-        sep1 = QFrame()
-        sep1.setFrameShape(QFrame.Shape.VLine)
-        sep1.setStyleSheet("color: #334155;")
-        h.addWidget(sep1)
+        self._sep_before_sampling = QFrame()
+        self._sep_before_sampling.setFrameShape(QFrame.Shape.VLine)
+        self._sep_before_sampling.setStyleSheet("color: #334155;")
+        h.addWidget(self._sep_before_sampling)
 
-        sample_lbl = QLabel("Row sampling:")
-        sample_lbl.setStyleSheet("color: #94a3b8;")
-        h.addWidget(sample_lbl)
+        self._sample_lbl = QLabel("Row sampling:")
+        self._sample_lbl.setStyleSheet("color: #94a3b8;")
+        h.addWidget(self._sample_lbl)
 
         self._row_pct_spin = QSpinBox()
         self._row_pct_spin.setRange(1, 100)
@@ -474,14 +489,14 @@ class MainWindow(QMainWindow):
         h.addWidget(self._row_pct_spin)
         self._row_pct_spin.valueChanged.connect(self._update_status_counts)
 
-        sep2 = QFrame()
-        sep2.setFrameShape(QFrame.Shape.VLine)
-        sep2.setStyleSheet("color: #334155;")
-        h.addWidget(sep2)
+        self._sep_before_split = QFrame()
+        self._sep_before_split.setFrameShape(QFrame.Shape.VLine)
+        self._sep_before_split.setStyleSheet("color: #334155;")
+        h.addWidget(self._sep_before_split)
 
-        split_lbl = QLabel("Split by:")
-        split_lbl.setStyleSheet("color: #94a3b8;")
-        h.addWidget(split_lbl)
+        self._split_lbl = QLabel("Split by:")
+        self._split_lbl.setStyleSheet("color: #94a3b8;")
+        h.addWidget(self._split_lbl)
 
         self._split_col_combo = QComboBox()
         self._split_col_combo.addItem("(none)")
@@ -495,9 +510,9 @@ class MainWindow(QMainWindow):
         self._split_col_combo.currentIndexChanged.connect(self._on_split_col_changed)
         h.addWidget(self._split_col_combo)
 
-        threshold_lbl = QLabel("≤")
-        threshold_lbl.setStyleSheet("color: #94a3b8;")
-        h.addWidget(threshold_lbl)
+        self._threshold_lbl = QLabel("≤")
+        self._threshold_lbl.setStyleSheet("color: #94a3b8;")
+        h.addWidget(self._threshold_lbl)
 
         self._split_threshold = QDoubleSpinBox()
         self._split_threshold.setRange(-1e9, 1e9)
@@ -509,6 +524,22 @@ class MainWindow(QMainWindow):
         self._split_threshold.setToolTip("Threshold value — rows ≤ this go to file 1, rows > this go to file 2.")
         h.addWidget(self._split_threshold)
         self._split_threshold.valueChanged.connect(self._update_status_counts)
+
+        self._sep_agg = QFrame()
+        self._sep_agg.setFrameShape(QFrame.Shape.VLine)
+        self._sep_agg.setStyleSheet("color: #334155;")
+        h.addWidget(self._sep_agg)
+
+        self._aggregate_as_wells_check = QCheckBox("As wells table")
+        self._aggregate_as_wells_check.setEnabled(False)
+        self._aggregate_as_wells_check.setToolTip(
+            "When checked, export aggregated wells tables (one row per well)\n"
+            "instead of the raw split cells tables.\n"
+            "Only available for cells tables when a split column is selected."
+        )
+        self._aggregate_as_wells_check.setStyleSheet("color: #94a3b8;")
+        self._aggregate_as_wells_check.toggled.connect(self._on_aggregate_checked)
+        h.addWidget(self._aggregate_as_wells_check)
 
         sep3 = QFrame()
         sep3.setFrameShape(QFrame.Shape.VLine)
@@ -582,27 +613,19 @@ class MainWindow(QMainWindow):
         self._load_worker.finished.connect(self._on_load_finished)
         self._load_worker.start()
 
-    def _on_csv_loaded(self, df: pd.DataFrame, wells: list, columns: list, col_descriptions: dict) -> None:
-        self._df = df
-
-        # Update plate widget
-        self._plate.setAvailableWells(set(wells))
-        self._plate_format_label.setText(
-            f"{self._plate.plateLabel()}  ·  {len(wells)} well(s) found"
-        )
-
-        # Populate column list (block signals to avoid spurious updates)
-        self._col_list.blockSignals(True)
-        self._col_list.clear()
-        # Restore saved selection when the file has the same columns as last time
-        saved_source = self._settings.value("column_selection_source_cols", [])
-        saved_checked = self._settings.value("column_selection_checked", [])
+    def _populate_col_list(self, columns: List[str], col_descriptions: dict, settings_key: str) -> None:
+        """Fill the column list widget, restoring the persisted selection for this key."""
+        saved_source  = self._settings.value(f"{settings_key}_source_cols", [])
+        saved_checked = self._settings.value(f"{settings_key}_checked", [])
         if not isinstance(saved_source, list):
-            saved_source = list(saved_source) if saved_source else []
+            saved_source  = list(saved_source)  if saved_source  else []
         if not isinstance(saved_checked, list):
             saved_checked = list(saved_checked) if saved_checked else []
         columns_match = sorted(saved_source) == sorted(columns)
         checked_set: Set[str] = set(saved_checked) if columns_match else set(columns)
+
+        self._col_list.blockSignals(True)
+        self._col_list.clear()
         for col in columns:
             item = QListWidgetItem(col)
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
@@ -614,6 +637,47 @@ class MainWindow(QMainWindow):
                 item.setToolTip(desc)
             self._col_list.addItem(item)
         self._col_list.blockSignals(False)
+
+    def _on_csv_loaded(self, df: pd.DataFrame, wells: list, columns: list,
+                       col_descriptions: dict, table_type: str = '') -> None:
+        self._df = df
+
+        # ── Cells/wells aggregation state ─────────────────────────────────────────
+        self._is_cells_table     = (table_type == 'cells')
+        self._cells_columns      = list(columns)
+        self._cells_col_descs    = col_descriptions
+        self._showing_wells_cols = False
+        if self._is_cells_table:
+            self._computable_wells_cols = available_wells_columns(columns)
+            all_wells_descs             = load_wells_col_descriptions()
+            self._wells_col_descs       = {
+                c: all_wells_descs.get(c, '') for c in self._computable_wells_cols
+            }
+        else:
+            self._computable_wells_cols = []
+            self._wells_col_descs       = {}
+        # Reset aggregate checkbox on every new file load
+        self._aggregate_as_wells_check.blockSignals(True)
+        self._aggregate_as_wells_check.setChecked(False)
+        self._aggregate_as_wells_check.setEnabled(False)
+        self._aggregate_as_wells_check.blockSignals(False)
+
+        # Hide cells-table-only controls for known wells tables
+        is_wells = (table_type == 'wells')
+        for w in (self._sep_before_sampling, self._sample_lbl, self._row_pct_spin,
+                  self._sep_before_split, self._split_lbl, self._split_col_combo,
+                  self._threshold_lbl, self._split_threshold,
+                  self._sep_agg, self._aggregate_as_wells_check):
+            w.setVisible(not is_wells)
+
+        # Update plate widget
+        self._plate.setAvailableWells(set(wells))
+        self._plate_format_label.setText(
+            f"{self._plate.plateLabel()}  ·  {len(wells)} well(s) found"
+        )
+
+        # Populate column list
+        self._populate_col_list(columns, col_descriptions, "column_selection")
 
         self._status_rows.setText(f"Rows: {len(df):,}")
         self._update_status_counts()
@@ -726,10 +790,12 @@ class MainWindow(QMainWindow):
             threshold  = self._split_threshold.value()
             safe_col   = re.sub(r"[^\w.-]", "_", split_col)
             thr_str    = f"{threshold:g}"          # compact numeric string, e.g. "0" or "2.5"
+            aggregate  = self._aggregate_as_wells_check.isChecked()
+            wells_sfx  = "-wells" if aggregate else ""
             out_low  = str(Path(self._output_folder) /
-                           f"{name_part}-below_or_equal_{safe_col}_{thr_str}.csv")
+                           f"{name_part}-below_or_equal_{safe_col}_{thr_str}{wells_sfx}.csv")
             out_high = str(Path(self._output_folder) /
-                           f"{name_part}-above_{safe_col}_{thr_str}.csv")
+                           f"{name_part}-above_{safe_col}_{thr_str}{wells_sfx}.csv")
 
             # Pre-filter the full DataFrame by the threshold column
             mask_low  = self._df[split_col] <= threshold
@@ -759,7 +825,8 @@ class MainWindow(QMainWindow):
                 )
 
             self._export_btn.setEnabled(False)
-            row_pct = self._row_pct_spin.value()
+            row_pct    = self._row_pct_spin.value()
+            wells_cols = columns if aggregate else None
 
             # Keep references so Qt doesn't garbage-collect the workers
             self._export_worker        = None
@@ -768,14 +835,16 @@ class MainWindow(QMainWindow):
             if has_low and has_high:
                 # Start worker1 (low); on finish, start worker2 (high)
                 self._export_worker = ExportWorker(
-                    df_low, wells, columns, out_low, row_pct=row_pct, parent=self
+                    df_low, wells, columns, out_low, row_pct=row_pct,
+                    aggregate_to_wells=aggregate, wells_columns=wells_cols, parent=self
                 )
                 self._export_worker.error.connect(self._on_export_error)
 
                 def _start_second(path1: str) -> None:
                     self._on_export_done(path1)
                     self._export_worker_split2 = ExportWorker(
-                        df_high, wells, columns, out_high, row_pct=row_pct, parent=self
+                        df_high, wells, columns, out_high, row_pct=row_pct,
+                        aggregate_to_wells=aggregate, wells_columns=wells_cols, parent=self
                     )
                     self._export_worker_split2.done.connect(self._on_export_done)
                     self._export_worker_split2.error.connect(self._on_export_error)
@@ -789,7 +858,8 @@ class MainWindow(QMainWindow):
 
             elif has_low:
                 self._export_worker = ExportWorker(
-                    df_low, wells, columns, out_low, row_pct=row_pct, parent=self
+                    df_low, wells, columns, out_low, row_pct=row_pct,
+                    aggregate_to_wells=aggregate, wells_columns=wells_cols, parent=self
                 )
                 self._export_worker.done.connect(self._on_export_done)
                 self._export_worker.error.connect(self._on_export_error)
@@ -798,7 +868,8 @@ class MainWindow(QMainWindow):
 
             else:  # has_high only
                 self._export_worker = ExportWorker(
-                    df_high, wells, columns, out_high, row_pct=row_pct, parent=self
+                    df_high, wells, columns, out_high, row_pct=row_pct,
+                    aggregate_to_wells=aggregate, wells_columns=wells_cols, parent=self
                 )
                 self._export_worker.done.connect(self._on_export_done)
                 self._export_worker.error.connect(self._on_export_error)
@@ -820,17 +891,45 @@ class MainWindow(QMainWindow):
     # ══════════════════════════════════════════════════════════════════════
 
     def _on_split_col_changed(self, index: int) -> None:
-        """Enable/disable the threshold spinbox based on combo selection."""
-        self._split_threshold.setEnabled(index > 0)
+        """Enable/disable the threshold spinbox and aggregate checkbox."""
+        split_active = index > 0
+        self._split_threshold.setEnabled(split_active)
+        can_aggregate = (
+            self._is_cells_table
+            and bool(self._computable_wells_cols)
+            and split_active
+        )
+        self._aggregate_as_wells_check.setEnabled(can_aggregate)
+        if not split_active:
+            self._aggregate_as_wells_check.setChecked(False)
         self._update_status_counts()
+
+    def _on_aggregate_checked(self, checked: bool) -> None:
+        """Swap the column list between cells columns and aggregated wells columns."""
+        self._showing_wells_cols = checked
+        if checked:
+            self._populate_col_list(
+                self._computable_wells_cols,
+                self._wells_col_descs,
+                settings_key="column_selection_wells",
+            )
+        else:
+            self._populate_col_list(
+                self._cells_columns,
+                self._cells_col_descs,
+                settings_key="column_selection",
+            )
+        self._update_status_counts()
+        self._update_export_button()
 
     def _save_column_selection(self) -> None:
         """Persist the current column list and checked state to QSettings."""
+        prefix   = "column_selection_wells" if self._showing_wells_cols else "column_selection"
         all_cols = [self._col_list.item(i).text() for i in range(self._col_list.count())]
         checked  = [self._col_list.item(i).text() for i in range(self._col_list.count())
                     if self._col_list.item(i).checkState() == Qt.CheckState.Checked]
-        self._settings.setValue("column_selection_source_cols", all_cols)
-        self._settings.setValue("column_selection_checked", checked)
+        self._settings.setValue(f"{prefix}_source_cols", all_cols)
+        self._settings.setValue(f"{prefix}_checked", checked)
 
     def _selected_columns(self) -> List[str]:
         cols = []
@@ -875,10 +974,19 @@ class MainWindow(QMainWindow):
         else:
             thr       = self._split_threshold.value()
             col_vals  = self._df.loc[well_mask, split_col]
-            low_rows  = int((col_vals <= thr).sum())
-            high_rows = int((col_vals >  thr).sum())
-            low_s     = math.ceil(low_rows  / step)
-            high_s    = math.ceil(high_rows / step)
-            self._status_output.setText(
-                f"Output:  ≤{thr:g}: {approx}{low_s:,}  |  >{thr:g}: {approx}{high_s:,}"
-            )
+            aggregate = self._aggregate_as_wells_check.isChecked()
+            if aggregate:
+                subset    = self._df.loc[well_mask]
+                low_s     = int(subset.loc[col_vals <= thr, "SeriesName"].nunique())
+                high_s    = int(subset.loc[col_vals >  thr, "SeriesName"].nunique())
+                self._status_output.setText(
+                    f"Output:  ≤{thr:g}: {low_s:,} wells  |  >{thr:g}: {high_s:,} wells"
+                )
+            else:
+                low_rows  = int((col_vals <= thr).sum())
+                high_rows = int((col_vals >  thr).sum())
+                low_s     = math.ceil(low_rows  / step)
+                high_s    = math.ceil(high_rows / step)
+                self._status_output.setText(
+                    f"Output:  ≤{thr:g}: {approx}{low_s:,}  |  >{thr:g}: {approx}{high_s:,}"
+                )

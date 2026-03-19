@@ -17,7 +17,9 @@ A browser-based version of CITableCleaner that runs entirely in the browser — 
 - Column selection with per-format persistence via `localStorage`.
 - Row sampling (export every N-th row, 1–100 %).
 - Split export: export two CSVs split on a numeric column threshold (≤ / >).
-- Status bar shows selected wells, columns, and estimated output row counts (including split counts and sampling estimates).
+- **Wells aggregation** — when splitting a cells table, tick *As wells table* to aggregate each split group into a wells table (one row per well with computed summary statistics such as mean, std, median, and percentage positive). The column list switches to the available wells-level columns.
+- **Auto-detection of table type** — cells-only controls (row sampling, split, aggregation) are automatically hidden when a wells table is loaded.
+- Status bar shows selected wells, columns, and estimated output row counts (including split counts, sampling estimates, and per-group well counts when aggregating).
 - A warning toast is shown when an `.xlsx` file larger than 50 MB is loaded, as parsing large Excel files with Pyodide is significantly slower than CSV.
 - **Column description tooltips** — when the loaded file's columns match a known table format (`cellstableheaders.csv` or `wellstableheaders.csv`), hovering over a column name shows a tooltip with its description. A download link for the matched header CSV appears in the bottom bar.
 - Compatible with modern browsers including Safari 15+ on macOS.
@@ -58,6 +60,7 @@ The `web/` folder is self-contained and is automatically deployed to GitHub Page
 | `web/app.py` | Pure Python data layer executed by Pyodide |
 | `web/cellstableheaders.csv` | Column descriptions for cell-level tables |
 | `web/wellstableheaders.csv` | Column descriptions for well-level tables |
+| `web/coi-serviceworker.min.js` | COOP/COEP service worker for SharedArrayBuffer support |
 
 ---
 
@@ -81,7 +84,11 @@ CITableCleaner is built around a three-step workflow:
 
 3. **Export** — Choose an output folder and click *Export CSV*. One clean CSV is written for every selected well, containing only the chosen measurement columns. File names follow the pattern `<WellID>-cells.csv`.
 
-A status bar at the bottom always shows the current row count, number of selected wells, and number of selected columns.
+When a split column is selected and the loaded file is a cells table, the **As wells table** checkbox becomes available. Checking it switches the column list to aggregated wells-level metrics (mean, std, median, percentage positive, etc.) and exports one wells table per split group instead of raw cells rows.
+
+A status bar at the bottom always shows the current row count, number of selected wells, and number of selected columns. When aggregating, the status bar shows the number of wells per split group.
+
+When the loaded file is a wells table, cells-only controls (row sampling, split, aggregation) are automatically hidden.
 
 When the loaded file's columns match a known CI Analyze table format, **tooltips with column descriptions** are shown on hover in the column list. The descriptions are defined in `cellstableheaders.csv` and `wellstableheaders.csv`.
 

@@ -5,13 +5,16 @@
  *   { type: 'init' }
  *   { type: 'load',   buf: ArrayBuffer, ext: string, sizeMB: number }
  *   { type: 'export', wells: string[], columns: string[], rowPct: number,
- *                     splitCol: string, threshold: number }
+ *                     splitCol: string, threshold: number,
+ *                     aggregateToWells: boolean, wellsColumns: string[] }
  *   { type: 'colRange', colName: string }
  *
  * Message protocol (worker → main):
  *   { type: 'ready' }
  *   { type: 'progress', value: number }   // 0-100
- *   { type: 'loaded',   wells, columns, numericCols, rowCount, singleRowPerWell }
+ *   { type: 'loaded',   wells, columns, numericCols, rowCount, singleRowPerWell,
+ *                       wellColumn, colDescriptions, matchedHeaderCsv,
+ *                       isCellsTable, availableWellsCols, wellsColDescs }
  *   { type: 'exported', files: [{filename, csv_text}] }
  *   { type: 'colRange', min, max }
  *   { type: 'error',    message: string }
@@ -84,6 +87,9 @@ async function loadFile(buf, ext, sizeMB) {
       wellColumn:       info.well_column,
       colDescriptions:  info.col_descriptions || {},
       matchedHeaderCsv: info.matched_header_csv || null,
+      isCellsTable:     info.is_cells_table || false,
+      availableWellsCols: info.available_wells_cols || [],
+      wellsColDescs:    info.wells_col_descs || {},
     });
   } catch (err) {
     postMessage({ type: 'error', message: `Load failed: ${err}` });
@@ -92,15 +98,18 @@ async function loadFile(buf, ext, sizeMB) {
 
 // ── Export ────────────────────────────────────────────────────────────────
 
-async function exportData({ wells, columns, rowPct, splitCol, threshold }) {
+async function exportData({ wells, columns, rowPct, splitCol, threshold, aggregateToWells, wellsColumns }) {
   try {
-    const pyWells   = pyodide.toPy(wells);
-    const pyCols    = pyodide.toPy(columns);
-    const pyResult  = pyodide.globals.get('export_data')(
-      pyWells, pyCols, rowPct, splitCol || '(none)', threshold ?? 0
+    const pyWells     = pyodide.toPy(wells);
+    const pyCols      = pyodide.toPy(columns);
+    const pyWellsCols = pyodide.toPy(wellsColumns || []);
+    const pyResult    = pyodide.globals.get('export_data')(
+      pyWells, pyCols, rowPct, splitCol || '(none)', threshold ?? 0,
+      aggregateToWells || false, pyWellsCols
     );
     pyWells.destroy();
     pyCols.destroy();
+    pyWellsCols.destroy();
 
     // Convert list of dicts to plain JS array
     const files = [];
@@ -135,11 +144,12 @@ function getColRange(colName) {
 
 // ── Row stats ──────────────────────────────────────────────────────────────
 
-function getRowStats({ wells, rowPct, splitCol, threshold }) {
+function getRowStats({ wells, rowPct, splitCol, threshold, aggregateToWells }) {
   try {
     const pyWells = pyodide.toPy(wells);
     const result  = pyodide.globals.get('get_row_stats')(
-      pyWells, rowPct, splitCol || '(none)', threshold ?? 0
+      pyWells, rowPct, splitCol || '(none)', threshold ?? 0,
+      aggregateToWells || false
     );
     pyWells.destroy();
     const info = result.toJs({ dict_converter: Object.fromEntries });
